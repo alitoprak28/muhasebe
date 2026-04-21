@@ -1,5 +1,10 @@
-import { BadgeCheck, ShoppingCart, Truck } from "lucide-react";
+import { BadgeCheck, Plus, ShoppingCart, Truck } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
+import { Modal } from "../../components/common/Modal";
 import { EnterpriseTablePage } from "../../components/enterprise/EnterpriseTablePage";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { enterpriseService } from "../../services/enterpriseService";
@@ -17,6 +22,35 @@ const statusOptions = [
 ];
 
 export const OrdersPage = () => {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const orderFields = [
+    { name: "orderNumber", label: "Siparis no", rules: { required: "Siparis numarasi zorunludur." }, placeholder: "SPS-2026-010" },
+    { name: "type", label: "Tip", type: "select", options: typeOptions, defaultValue: "sales" },
+    { name: "currentName", label: "Cari unvani", rules: { required: "Cari unvani zorunludur." }, placeholder: "Orion Magazacilik A.S." },
+    { name: "issueDate", label: "Siparis tarihi", type: "date", defaultValue: new Date() },
+    { name: "deliveryDate", label: "Teslim tarihi", type: "date", defaultValue: new Date() },
+    { name: "sourceOffer", label: "Kaynak teklif", placeholder: "TKL-2026-010" },
+    { name: "total", label: "Toplam tutar", type: "number", defaultValue: 0 },
+    { name: "status", label: "Durum", type: "select", options: statusOptions, defaultValue: "approved" },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+      await Promise.resolve(enterpriseService.createOrder(values));
+      toast.success("Yeni siparis olusturuldu.");
+      setIsOpen(false);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error("Siparis olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = [
     {
       header: "Siparis",
@@ -54,11 +88,13 @@ export const OrdersPage = () => {
   ];
 
   return (
-    <EnterpriseTablePage
+    <>
+      <EnterpriseTablePage
       eyebrow="Siparis Yonetimi"
       title="Satis ve alis siparislerini sevk akisina baglayin"
       description="Tekliften donusen siparisleri teslim tarihi ve sevk durumuyla birlikte operasyonel olarak yonetin."
       loader={enterpriseService.listOrders}
+      refreshKey={refreshKey}
       columns={columns}
       typeOptions={typeOptions}
       statusOptions={statusOptions}
@@ -72,6 +108,11 @@ export const OrdersPage = () => {
         { title: "Satis Siparisi", value: summary.salesCount || 0, isCurrency: false, icon: BadgeCheck },
         { title: "Alis Siparisi", value: summary.purchaseCount || 0, isCurrency: false, icon: Truck },
       ]}
+      actions={
+        <Button variant="secondary" icon={Plus} onClick={() => setIsOpen(true)}>
+          Yeni Siparis
+        </Button>
+      }
       renderSideContent={({ rows }) => (
         <SectionCard
           title="Akis Durumu"
@@ -91,6 +132,21 @@ export const OrdersPage = () => {
           </div>
         </SectionCard>
       )}
-    />
+      />
+      <Modal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Yeni siparis"
+        description="Tekliften veya dogrudan operasyon ekranindan yeni siparis acin."
+      >
+        <EnterpriseRecordForm
+          fields={orderFields}
+          onSubmit={handleCreate}
+          onCancel={() => setIsOpen(false)}
+          isSubmitting={isSubmitting}
+          submitLabel="Siparisi Kaydet"
+        />
+      </Modal>
+    </>
   );
 };

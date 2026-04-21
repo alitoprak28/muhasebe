@@ -1,5 +1,10 @@
-import { CircleDollarSign, HandCoins, Receipt } from "lucide-react";
+import { CircleDollarSign, HandCoins, Plus, Receipt } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
+import { Modal } from "../../components/common/Modal";
 import { EnterpriseTablePage } from "../../components/enterprise/EnterpriseTablePage";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { enterpriseService } from "../../services/enterpriseService";
@@ -16,6 +21,45 @@ const statusOptions = [
 ];
 
 export const CollectionsPage = () => {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const collectionFields = [
+    { name: "collectionNumber", label: "Tahsilat no", rules: { required: "Tahsilat no zorunludur." }, placeholder: "TSL-2026-010" },
+    { name: "currentName", label: "Cari unvani", rules: { required: "Cari unvani zorunludur." }, placeholder: "Orion Magazacilik A.S." },
+    { name: "collectionDate", label: "Tahsilat tarihi", type: "date", defaultValue: new Date() },
+    { name: "amount", label: "Tutar", type: "number", defaultValue: 0 },
+    { name: "type", label: "Tip", type: "select", options: typeOptions, defaultValue: "invoice_based" },
+    {
+      name: "paymentMethod",
+      label: "Odeme yontemi",
+      type: "select",
+      options: [
+        { value: "bank_transfer", label: "Banka transferi" },
+        { value: "credit_card", label: "Kredi karti" },
+        { value: "cash", label: "Nakit" },
+      ],
+      defaultValue: "bank_transfer",
+    },
+    { name: "invoiceNumber", label: "Fatura no", placeholder: "FTR-2026-010" },
+    { name: "status", label: "Durum", type: "select", options: statusOptions, defaultValue: "completed" },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+      await Promise.resolve(enterpriseService.createCollection(values));
+      toast.success("Yeni tahsilat kaydi olusturuldu.");
+      setIsOpen(false);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error("Tahsilat kaydi olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = [
     {
       header: "Tahsilat",
@@ -53,11 +97,13 @@ export const CollectionsPage = () => {
   ];
 
   return (
-    <EnterpriseTablePage
+    <>
+      <EnterpriseTablePage
       eyebrow="Tahsilat Yonetimi"
       title="Acik hesaplari ve fatura bazli tahsilatlari kapatin"
       description="Kismi ve tamamlanmis tahsilatlari odeme kanali bazinda izleyerek nakit akisina dogrudan hakim olun."
       loader={enterpriseService.listCollections}
+      refreshKey={refreshKey}
       columns={columns}
       typeOptions={typeOptions}
       statusOptions={statusOptions}
@@ -71,6 +117,11 @@ export const CollectionsPage = () => {
         { title: "Tamamlanan Tutar", value: summary.completedAmount || 0, icon: HandCoins },
         { title: "Kismi Kayit", value: summary.partialCount || 0, isCurrency: false, icon: Receipt },
       ]}
+      actions={
+        <Button variant="secondary" icon={Plus} onClick={() => setIsOpen(true)}>
+          Yeni Tahsilat
+        </Button>
+      }
       renderSideContent={({ rows }) => (
         <SectionCard
           title="Tahsilat Performansi"
@@ -87,6 +138,21 @@ export const CollectionsPage = () => {
           </div>
         </SectionCard>
       )}
-    />
+      />
+      <Modal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Yeni tahsilat"
+        description="Cari veya fatura bazli tahsilat kaydini olusturun."
+      >
+        <EnterpriseRecordForm
+          fields={collectionFields}
+          onSubmit={handleCreate}
+          onCancel={() => setIsOpen(false)}
+          isSubmitting={isSubmitting}
+          submitLabel="Tahsilati Kaydet"
+        />
+      </Modal>
+    </>
   );
 };

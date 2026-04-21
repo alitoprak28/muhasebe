@@ -1,5 +1,10 @@
-import { FileBadge2, FileText, Send } from "lucide-react";
+import { FileBadge2, FileText, Plus, Send } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
+import { Modal } from "../../components/common/Modal";
 import { EnterpriseTablePage } from "../../components/enterprise/EnterpriseTablePage";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { enterpriseService } from "../../services/enterpriseService";
@@ -17,6 +22,38 @@ const statusOptions = [
 ];
 
 export const OffersPage = () => {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const offerFields = [
+    { name: "offerNumber", label: "Teklif no", rules: { required: "Teklif numarasi zorunludur." }, placeholder: "TKL-2026-010" },
+    { name: "currentName", label: "Cari unvani", rules: { required: "Cari unvani zorunludur." }, placeholder: "Orion Magazacilik A.S." },
+    { name: "type", label: "Tip", type: "select", options: typeOptions, defaultValue: "sales" },
+    { name: "status", label: "Durum", type: "select", options: statusOptions, defaultValue: "sent" },
+    { name: "issueDate", label: "Belge tarihi", type: "date", defaultValue: new Date() },
+    { name: "validUntil", label: "Gecerlilik tarihi", type: "date", defaultValue: new Date() },
+    { name: "items", label: "Kalem sayisi", type: "number", defaultValue: 1 },
+    { name: "subtotal", label: "Ara toplam", type: "number", defaultValue: 0 },
+    { name: "discount", label: "Iskonto", type: "number", defaultValue: 0 },
+    { name: "vatTotal", label: "KDV toplami", type: "number", defaultValue: 0 },
+    { name: "grandTotal", label: "Genel toplam", type: "number", defaultValue: 0 },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+      await Promise.resolve(enterpriseService.createOffer(values));
+      toast.success("Yeni teklif olusturuldu.");
+      setIsOpen(false);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error("Teklif olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = [
     {
       header: "Teklif",
@@ -54,11 +91,13 @@ export const OffersPage = () => {
   ];
 
   return (
-    <EnterpriseTablePage
+    <>
+      <EnterpriseTablePage
       eyebrow="Teklif Yonetimi"
       title="Ticari firsatlari teklif havuzunda yonetin"
       description="Tekliften siparise donusecek satis ve alis dosyalarini durum bazli olarak takip edin."
       loader={enterpriseService.listOffers}
+      refreshKey={refreshKey}
       columns={columns}
       typeOptions={typeOptions}
       statusOptions={statusOptions}
@@ -72,6 +111,11 @@ export const OffersPage = () => {
         { title: "Gonderilen Teklif", value: summary.sent || 0, isCurrency: false, icon: Send },
         { title: "Onaylanan Teklif", value: summary.approved || 0, isCurrency: false, icon: FileBadge2 },
       ]}
+      actions={
+        <Button variant="secondary" icon={Plus} onClick={() => setIsOpen(true)}>
+          Yeni Teklif
+        </Button>
+      }
       renderSideContent={({ rows, summary }) => (
         <>
           <SectionCard title="Teklif Ozetleri" description="Pipeline'in bugunku dagilimi.">
@@ -100,6 +144,21 @@ export const OffersPage = () => {
           </SectionCard>
         </>
       )}
-    />
+      />
+      <Modal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Yeni teklif"
+        description="Teklif akisini baslatacak temel belge bilgisini sisteme kaydedin."
+      >
+        <EnterpriseRecordForm
+          fields={offerFields}
+          onSubmit={handleCreate}
+          onCancel={() => setIsOpen(false)}
+          isSubmitting={isSubmitting}
+          submitLabel="Teklifi Kaydet"
+        />
+      </Modal>
+    </>
   );
 };

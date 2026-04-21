@@ -1,12 +1,16 @@
-import { AlertTriangle, Boxes, PackageCheck, Warehouse } from "lucide-react";
+import { AlertTriangle, Boxes, PackageCheck, Plus, Warehouse } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
 import { DataTable } from "../../components/common/DataTable";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { MetricCard } from "../../components/common/MetricCard";
+import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { enterpriseService } from "../../services/enterpriseService";
 import { formatDate } from "../../utils/formatters";
 
@@ -14,6 +18,8 @@ export const InventoryPage = () => {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [formMode, setFormMode] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
     try {
@@ -35,6 +41,71 @@ export const InventoryPage = () => {
   if (isLoading) {
     return <LoadingState label="Stok ve depo verileri yukleniyor..." />;
   }
+
+  const closeModal = () => setFormMode(null);
+
+  const warehouseFields = [
+    { name: "code", label: "Depo kodu", rules: { required: "Depo kodu zorunludur." }, placeholder: "DPO-04" },
+    { name: "name", label: "Depo adi", rules: { required: "Depo adi zorunludur." }, placeholder: "Ege Sevkiyat Deposu" },
+    { name: "city", label: "Sehir", placeholder: "Izmir" },
+    { name: "manager", label: "Yonetici", placeholder: "Seda Yaman" },
+    { name: "capacity", label: "Kapasite", type: "number", defaultValue: 0 },
+    {
+      name: "status",
+      label: "Durum",
+      type: "select",
+      options: [
+        { value: "active", label: "Aktif" },
+        { value: "inactive", label: "Pasif" },
+      ],
+      defaultValue: "active",
+    },
+  ];
+
+  const stockFields = [
+    {
+      name: "productId",
+      label: "Urun",
+      type: "select",
+      options: data?.products?.map((item) => ({ value: item._id, label: `${item.stockCode} / ${item.name}` })) || [],
+      rules: { required: "Urun seciniz." },
+    },
+    {
+      name: "warehouseId",
+      label: "Depo",
+      type: "select",
+      options: data?.warehouses?.map((item) => ({ value: item._id, label: item.name })) || [],
+      rules: { required: "Depo seciniz." },
+    },
+    { name: "quantity", label: "Miktar", type: "number", defaultValue: 0 },
+    { name: "reserved", label: "Rezerve", type: "number", defaultValue: 0 },
+    { name: "minimumStock", label: "Minimum stok", type: "number", defaultValue: 0 },
+    { name: "maximumStock", label: "Maksimum stok", type: "number", defaultValue: 0 },
+    { name: "lastMovementDate", label: "Son hareket tarihi", type: "date", defaultValue: new Date() },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+
+      if (formMode === "warehouse") {
+        await Promise.resolve(enterpriseService.createWarehouse(values));
+        toast.success("Yeni depo karti olusturuldu.");
+      }
+
+      if (formMode === "stock") {
+        await Promise.resolve(enterpriseService.createStock(values));
+        toast.success("Yeni stok pozisyonu olusturuldu.");
+      }
+
+      closeModal();
+      await loadData();
+    } catch (error) {
+      toast.error("Kayit olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (hasError || !data) {
     return (
@@ -88,6 +159,16 @@ export const InventoryPage = () => {
         eyebrow="Depolar ve Stok"
         title="Envanter gorunurlugunu depo bazinda yonetin"
         description="Kritik stoklari, rezerve miktarlari ve depo kapasitelerini ayni ekrandan izleyin."
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Button variant="ghost" icon={Plus} onClick={() => setFormMode("warehouse")}>
+              Yeni Depo
+            </Button>
+            <Button variant="secondary" icon={Plus} onClick={() => setFormMode("stock")}>
+              Yeni Stok
+            </Button>
+          </div>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -151,6 +232,21 @@ export const InventoryPage = () => {
           </SectionCard>
         </div>
       </div>
+
+      <Modal
+        open={Boolean(formMode)}
+        onClose={closeModal}
+        title={formMode === "warehouse" ? "Yeni depo karti" : "Yeni stok pozisyonu"}
+        description="Depo ve stok verilerini envanter operasyonuna uygun sekilde kaydedin."
+      >
+        <EnterpriseRecordForm
+          fields={formMode === "warehouse" ? warehouseFields : stockFields}
+          onSubmit={handleCreate}
+          onCancel={closeModal}
+          isSubmitting={isSubmitting}
+          submitLabel={formMode === "warehouse" ? "Depoyu Kaydet" : "Stok Kaydini Olustur"}
+        />
+      </Modal>
     </div>
   );
 };

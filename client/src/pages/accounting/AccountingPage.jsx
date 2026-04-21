@@ -1,12 +1,16 @@
-import { BookText, Landmark, Scale } from "lucide-react";
+import { BookText, Landmark, Plus, Scale } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
 import { DataTable } from "../../components/common/DataTable";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { MetricCard } from "../../components/common/MetricCard";
+import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { enterpriseService } from "../../services/enterpriseService";
 import { formatCurrency, formatDate } from "../../utils/formatters";
 
@@ -14,6 +18,8 @@ export const AccountingPage = () => {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [formMode, setFormMode] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
     try {
@@ -25,6 +31,77 @@ export const AccountingPage = () => {
       setHasError(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const closeModal = () => setFormMode(null);
+
+  const accountFields = [
+    { name: "code", label: "Hesap kodu", rules: { required: "Hesap kodu zorunludur." }, placeholder: "153" },
+    { name: "name", label: "Hesap adi", rules: { required: "Hesap adi zorunludur." }, placeholder: "Ticari Mallar" },
+    {
+      name: "type",
+      label: "Hesap tipi",
+      type: "select",
+      options: [
+        { value: "asset", label: "Varlik" },
+        { value: "liability", label: "Yukumluluk" },
+        { value: "income", label: "Gelir" },
+        { value: "expense", label: "Gider" },
+      ],
+      defaultValue: "asset",
+    },
+    { name: "level", label: "Seviye", type: "number", defaultValue: 1 },
+    { name: "balance", label: "Bakiye", type: "number", defaultValue: 0 },
+  ];
+
+  const journalFields = [
+    { name: "voucherNo", label: "Fis no", rules: { required: "Fis numarasi zorunludur." }, placeholder: "MHS-2026-010" },
+    {
+      name: "voucherType",
+      label: "Fis tipi",
+      type: "select",
+      options: [
+        { value: "mahsup", label: "Mahsup" },
+        { value: "tahsil", label: "Tahsil" },
+        { value: "tediye", label: "Tediye" },
+      ],
+      defaultValue: "mahsup",
+    },
+    { name: "entryDate", label: "Fis tarihi", type: "date", defaultValue: new Date() },
+    { name: "description", label: "Aciklama", className: "md:col-span-2", placeholder: "Belge aciklamasi" },
+    { name: "sourceDocument", label: "Kaynak belge", placeholder: "FTR-2026-010" },
+    { name: "debit", label: "Borc", type: "number", defaultValue: 0 },
+    { name: "credit", label: "Alacak", type: "number", defaultValue: 0 },
+    {
+      name: "status",
+      label: "Durum",
+      type: "select",
+      options: [{ value: "posted", label: "Kaydedildi" }],
+      defaultValue: "posted",
+    },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+
+      if (formMode === "account") {
+        await Promise.resolve(enterpriseService.createAccountingAccount(values));
+        toast.success("Yeni muhasebe hesabi olusturuldu.");
+      }
+
+      if (formMode === "journal") {
+        await Promise.resolve(enterpriseService.createJournalEntry(values));
+        toast.success("Yeni muhasebe fisi olusturuldu.");
+      }
+
+      closeModal();
+      await loadData();
+    } catch (error) {
+      toast.error("Kayit olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -112,6 +189,16 @@ export const AccountingPage = () => {
         eyebrow="Genel Muhasebe"
         title="Hesap plani ve fis akisini mali disiplinle yonetin"
         description="Yevmiye fisleri, hesap planı ve belge baglantilarini tek finans omurgasi icinde birlestirin."
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Button variant="ghost" icon={Plus} onClick={() => setFormMode("account")}>
+              Yeni Hesap
+            </Button>
+            <Button variant="secondary" icon={Plus} onClick={() => setFormMode("journal")}>
+              Yeni Fis
+            </Button>
+          </div>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -145,6 +232,21 @@ export const AccountingPage = () => {
           />
         </SectionCard>
       </div>
+
+      <Modal
+        open={Boolean(formMode)}
+        onClose={closeModal}
+        title={formMode === "account" ? "Yeni muhasebe hesabi" : "Yeni muhasebe fisi"}
+        description="Genel muhasebe omurgasina yeni hesap veya yevmiye fis kaydi ekleyin."
+      >
+        <EnterpriseRecordForm
+          fields={formMode === "account" ? accountFields : journalFields}
+          onSubmit={handleCreate}
+          onCancel={closeModal}
+          isSubmitting={isSubmitting}
+          submitLabel={formMode === "account" ? "Hesabi Kaydet" : "Fisi Kaydet"}
+        />
+      </Modal>
     </div>
   );
 };

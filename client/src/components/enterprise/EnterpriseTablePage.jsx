@@ -35,6 +35,7 @@ export const EnterpriseTablePage = ({
   actions,
   renderSideContent,
   className,
+  refreshKey,
 }) => {
   const [filters, setFilters] = useState(initialFilters);
   const [draftFilters, setDraftFilters] = useState(initialFilters);
@@ -63,7 +64,7 @@ export const EnterpriseTablePage = ({
 
   useEffect(() => {
     loadData();
-  }, [filters]);
+  }, [filters, refreshKey]);
 
   const metrics = useMemo(
     () => (buildMetrics ? buildMetrics(payload) : []),

@@ -1,5 +1,10 @@
-import { ClipboardCheck, PackageOpen, Truck } from "lucide-react";
+import { ClipboardCheck, PackageOpen, Plus, Truck } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
+import { Modal } from "../../components/common/Modal";
 import { EnterpriseTablePage } from "../../components/enterprise/EnterpriseTablePage";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { enterpriseService } from "../../services/enterpriseService";
@@ -18,6 +23,36 @@ const statusOptions = [
 ];
 
 export const DispatchNotesPage = () => {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const dispatchFields = [
+    { name: "noteNumber", label: "Irsaliye no", rules: { required: "Irsaliye numarasi zorunludur." }, placeholder: "IRS-2026-010" },
+    { name: "type", label: "Tip", type: "select", options: typeOptions, defaultValue: "sales_dispatch" },
+    { name: "currentName", label: "Cari unvani", rules: { required: "Cari unvani zorunludur." }, placeholder: "Orion Magazacilik A.S." },
+    { name: "dispatchDate", label: "Sevk tarihi", type: "date", defaultValue: new Date() },
+    { name: "deliveredTo", label: "Teslim alan", placeholder: "Depo Kabul" },
+    { name: "vehiclePlate", label: "Arac / plaka", placeholder: "35 ABC 101" },
+    { name: "warehouseName", label: "Depo adi", placeholder: "Ege Sevkiyat Deposu" },
+    { name: "sourceOrder", label: "Bagli siparis", placeholder: "SPS-2026-010" },
+    { name: "status", label: "Durum", type: "select", options: statusOptions, defaultValue: "partial" },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+      await Promise.resolve(enterpriseService.createDispatchNote(values));
+      toast.success("Yeni irsaliye olusturuldu.");
+      setIsOpen(false);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error("Irsaliye olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = [
     {
       header: "Irsaliye",
@@ -55,11 +90,13 @@ export const DispatchNotesPage = () => {
   ];
 
   return (
-    <EnterpriseTablePage
+    <>
+      <EnterpriseTablePage
       eyebrow="Irsaliye Yonetimi"
       title="Sevk ve kabul belgelerini operasyon ritminde izleyin"
       description="Kismi sevk, teslim alma ve faturaya donusum asamalarini tek panelden takip edin."
       loader={enterpriseService.listDispatchNotes}
+      refreshKey={refreshKey}
       columns={columns}
       typeOptions={typeOptions}
       statusOptions={statusOptions}
@@ -73,6 +110,11 @@ export const DispatchNotesPage = () => {
         { title: "Kismi Sevk", value: summary.partialCount || 0, isCurrency: false, icon: Truck },
         { title: "Fatura Bekleyen", value: summary.waitingInvoice || 0, isCurrency: false, icon: ClipboardCheck },
       ]}
+      actions={
+        <Button variant="secondary" icon={Plus} onClick={() => setIsOpen(true)}>
+          Yeni Irsaliye
+        </Button>
+      }
       renderSideContent={({ rows }) => (
         <SectionCard
           title="Lojistik Nabzi"
@@ -92,6 +134,21 @@ export const DispatchNotesPage = () => {
           </div>
         </SectionCard>
       )}
-    />
+      />
+      <Modal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Yeni irsaliye"
+        description="Sevk veya kabul akisina baglanacak irsaliye kaydini olusturun."
+      >
+        <EnterpriseRecordForm
+          fields={dispatchFields}
+          onSubmit={handleCreate}
+          onCancel={() => setIsOpen(false)}
+          isSubmitting={isSubmitting}
+          submitLabel="Irsaliyeyi Kaydet"
+        />
+      </Modal>
+    </>
   );
 };

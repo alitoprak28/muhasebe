@@ -1,5 +1,10 @@
-import { Building2, CreditCard, WalletCards } from "lucide-react";
+import { Building2, CreditCard, Plus, WalletCards } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
+import { Modal } from "../../components/common/Modal";
 import { EnterpriseTablePage } from "../../components/enterprise/EnterpriseTablePage";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
 import { enterpriseService } from "../../services/enterpriseService";
@@ -17,6 +22,44 @@ const statusOptions = [
 ];
 
 export const PaymentsPage = () => {
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const paymentFields = [
+    { name: "paymentNumber", label: "Odeme no", rules: { required: "Odeme no zorunludur." }, placeholder: "ODM-2026-010" },
+    { name: "payeeName", label: "Odeme alicisi", rules: { required: "Alici zorunludur." }, placeholder: "Orion Tedarik Zinciri Ltd." },
+    { name: "paymentDate", label: "Odeme tarihi", type: "date", defaultValue: new Date() },
+    { name: "amount", label: "Tutar", type: "number", defaultValue: 0 },
+    { name: "category", label: "Kategori", type: "select", options: typeOptions, defaultValue: "supplier" },
+    {
+      name: "paymentMethod",
+      label: "Odeme yontemi",
+      type: "select",
+      options: [
+        { value: "bank_transfer", label: "Banka transferi" },
+        { value: "eft", label: "EFT" },
+        { value: "cash", label: "Nakit" },
+      ],
+      defaultValue: "bank_transfer",
+    },
+    { name: "status", label: "Durum", type: "select", options: statusOptions, defaultValue: "scheduled" },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+      await Promise.resolve(enterpriseService.createPayment(values));
+      toast.success("Yeni odeme kaydi olusturuldu.");
+      setIsOpen(false);
+      setRefreshKey((value) => value + 1);
+    } catch (error) {
+      toast.error("Odeme kaydi olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = [
     {
       header: "Odeme",
@@ -50,11 +93,13 @@ export const PaymentsPage = () => {
   ];
 
   return (
-    <EnterpriseTablePage
+    <>
+      <EnterpriseTablePage
       eyebrow="Odeme Yonetimi"
       title="Tedarikci, vergi ve personel odemelerini planlayin"
       description="Operasyonel nakit cikislarini kategori ve vade bilinciyle yoneterek finansal kontrolu guclendirin."
       loader={enterpriseService.listPayments}
+      refreshKey={refreshKey}
       columns={columns}
       typeOptions={typeOptions}
       statusOptions={statusOptions}
@@ -68,6 +113,11 @@ export const PaymentsPage = () => {
         { title: "Planli Tutar", value: summary.scheduledAmount || 0, icon: WalletCards },
         { title: "Tamamlanan Tutar", value: summary.completedAmount || 0, icon: Building2 },
       ]}
+      actions={
+        <Button variant="secondary" icon={Plus} onClick={() => setIsOpen(true)}>
+          Yeni Odeme
+        </Button>
+      }
       renderSideContent={({ rows }) => (
         <SectionCard
           title="Odeme Takvimi"
@@ -87,6 +137,21 @@ export const PaymentsPage = () => {
           </div>
         </SectionCard>
       )}
-    />
+      />
+      <Modal
+        open={isOpen}
+        onClose={() => setIsOpen(false)}
+        title="Yeni odeme"
+        description="Tedarikci, vergi veya personel odemesi icin yeni kayit acin."
+      >
+        <EnterpriseRecordForm
+          fields={paymentFields}
+          onSubmit={handleCreate}
+          onCancel={() => setIsOpen(false)}
+          isSubmitting={isSubmitting}
+          submitLabel="Odemeyi Kaydet"
+        />
+      </Modal>
+    </>
   );
 };

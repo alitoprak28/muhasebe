@@ -1,12 +1,16 @@
-import { Boxes, BriefcaseBusiness, ChartNoAxesColumn } from "lucide-react";
+import { Boxes, BriefcaseBusiness, ChartNoAxesColumn, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { Button } from "../../components/common/Button";
 import { DataTable } from "../../components/common/DataTable";
 import { ErrorState } from "../../components/common/ErrorState";
 import { LoadingState } from "../../components/common/LoadingState";
 import { MetricCard } from "../../components/common/MetricCard";
+import { Modal } from "../../components/common/Modal";
 import { PageHeader } from "../../components/common/PageHeader";
 import { SectionCard } from "../../components/common/SectionCard";
 import { StatusBadge } from "../../components/common/StatusBadge";
+import { EnterpriseRecordForm } from "../../components/forms/EnterpriseRecordForm";
 import { enterpriseService } from "../../services/enterpriseService";
 import { formatCurrency } from "../../utils/formatters";
 
@@ -14,6 +18,8 @@ export const CatalogPage = () => {
   const [data, setData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [formMode, setFormMode] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadData = async () => {
     try {
@@ -35,6 +41,61 @@ export const CatalogPage = () => {
   if (isLoading) {
     return <LoadingState label="Urun ve hizmet katalogu yukleniyor..." />;
   }
+
+  const closeModal = () => setFormMode(null);
+
+  const productFields = [
+    { name: "stockCode", label: "Stok kodu", rules: { required: "Stok kodu zorunludur." }, placeholder: "STK-2001" },
+    { name: "barcode", label: "Barkod", placeholder: "8690000002001" },
+    { name: "name", label: "Urun adi", rules: { required: "Urun adi zorunludur." }, placeholder: "Kurumsal Yazici" },
+    { name: "productGroup", label: "Urun grubu", rules: { required: "Urun grubu zorunludur." }, placeholder: "Donanim" },
+    { name: "brand", label: "Marka", placeholder: "Nova" },
+    { name: "unit", label: "Birim", placeholder: "adet" },
+    { name: "vatRate", label: "KDV %", type: "number", defaultValue: 20 },
+    { name: "purchasePrice", label: "Alis fiyati", type: "number", defaultValue: 0 },
+    { name: "salePrice", label: "Satis fiyati", type: "number", defaultValue: 0 },
+    { name: "minimumStock", label: "Minimum stok", type: "number", defaultValue: 0 },
+    { name: "maximumStock", label: "Maksimum stok", type: "number", defaultValue: 0 },
+    {
+      name: "warehouse",
+      label: "Varsayilan depo",
+      type: "select",
+      options: data?.warehouses?.map((item) => ({ value: item._id, label: item.name })) || [],
+      rules: { required: "Depo seciniz." },
+    },
+  ];
+
+  const serviceFields = [
+    { name: "serviceCode", label: "Hizmet kodu", rules: { required: "Hizmet kodu zorunludur." }, placeholder: "HSV-301" },
+    { name: "name", label: "Hizmet adi", rules: { required: "Hizmet adi zorunludur." }, placeholder: "Yerinde Destek" },
+    { name: "description", label: "Aciklama", type: "textarea", className: "md:col-span-2", placeholder: "Hizmet kapsam aciklamasi" },
+    { name: "vatRate", label: "KDV %", type: "number", defaultValue: 20 },
+    { name: "incomeAccount", label: "Gelir hesabi", placeholder: "600.01.010" },
+    { name: "expenseAccount", label: "Gider hesabi", placeholder: "770.04.021" },
+  ];
+
+  const handleCreate = async (values) => {
+    try {
+      setIsSubmitting(true);
+
+      if (formMode === "product") {
+        await Promise.resolve(enterpriseService.createProduct(values));
+        toast.success("Yeni urun karti olusturuldu.");
+      }
+
+      if (formMode === "service") {
+        await Promise.resolve(enterpriseService.createServiceCard(values));
+        toast.success("Yeni hizmet karti olusturuldu.");
+      }
+
+      closeModal();
+      await loadData();
+    } catch (error) {
+      toast.error("Kayit olusturulamadi.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (hasError || !data) {
     return (
@@ -112,6 +173,16 @@ export const CatalogPage = () => {
         eyebrow="Urun ve Hizmetler"
         title="Ticari kartlar ve fiyatlandirma yapisi"
         description="Stoklu urunler ile operasyonel hizmet kartlarini ayni katalog stratejisi icinde yonetin."
+        actions={
+          <div className="flex flex-wrap gap-3">
+            <Button variant="ghost" icon={Plus} onClick={() => setFormMode("service")}>
+              Yeni Hizmet
+            </Button>
+            <Button variant="secondary" icon={Plus} onClick={() => setFormMode("product")}>
+              Yeni Urun
+            </Button>
+          </div>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -180,6 +251,21 @@ export const CatalogPage = () => {
           emptyDescription="Sistemde henuz hizmet karti tanimlanmamis."
         />
       </SectionCard>
+
+      <Modal
+        open={Boolean(formMode)}
+        onClose={closeModal}
+        title={formMode === "product" ? "Yeni urun karti" : "Yeni hizmet karti"}
+        description="Kart bilgilerini kurumsal katalog standartlarina uygun sekilde tanimlayin."
+      >
+        <EnterpriseRecordForm
+          fields={formMode === "product" ? productFields : serviceFields}
+          onSubmit={handleCreate}
+          onCancel={closeModal}
+          isSubmitting={isSubmitting}
+          submitLabel={formMode === "product" ? "Urunu Kaydet" : "Hizmeti Kaydet"}
+        />
+      </Modal>
     </div>
   );
 };

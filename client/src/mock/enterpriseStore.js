@@ -635,6 +635,70 @@ const saveDb = (db) => {
   return db;
 };
 
+const recordConfigs = {
+  products: { prefix: "prd", module: "catalog", labelKey: "stockCode", summary: "Urun karti olusturuldu" },
+  serviceCards: { prefix: "srv", module: "catalog", labelKey: "serviceCode", summary: "Hizmet karti olusturuldu" },
+  warehouses: { prefix: "wh", module: "inventory", labelKey: "code", summary: "Depo karti olusturuldu" },
+  stocks: { prefix: "stk", module: "inventory", labelKey: "productId", summary: "Stok pozisyonu olusturuldu" },
+  offers: { prefix: "off", module: "offers", labelKey: "offerNumber", summary: "Teklif olusturuldu" },
+  orders: { prefix: "ord", module: "orders", labelKey: "orderNumber", summary: "Siparis olusturuldu" },
+  dispatchNotes: { prefix: "dsp", module: "dispatch", labelKey: "noteNumber", summary: "Irsaliye olusturuldu" },
+  collections: { prefix: "col", module: "collections", labelKey: "collectionNumber", summary: "Tahsilat kaydi olusturuldu" },
+  payments: { prefix: "pay", module: "payments", labelKey: "paymentNumber", summary: "Odeme kaydi olusturuldu" },
+  checks: { prefix: "chk", module: "checks", labelKey: "documentNumber", summary: "Cek / senet kaydi olusturuldu" },
+  accountingAccounts: { prefix: "acc", module: "accounting", labelKey: "code", summary: "Muhasebe hesabi olusturuldu" },
+  journalEntries: { prefix: "jrn", module: "accounting", labelKey: "voucherNo", summary: "Muhasebe fisi olusturuldu" },
+  documents: { prefix: "doc", module: "documents", labelKey: "name", summary: "Dokuman kaydi olusturuldu" },
+  notifications: { prefix: "ntf", module: "notifications", labelKey: "title", summary: "Bildirim olusturuldu" },
+  calendarEvents: { prefix: "cal", module: "calendar", labelKey: "title", summary: "Takvim kaydi olusturuldu" },
+};
+
+const nextId = (rows, prefix) => {
+  const max = rows.reduce((highest, item) => {
+    const raw = String(item._id || "").split("_")[1];
+    const value = Number(raw);
+    return Number.isFinite(value) ? Math.max(highest, value) : highest;
+  }, 0);
+
+  return `${prefix}_${max + 1}`;
+};
+
+const normalizeDate = (value) => (value ? dateOf(value) : dateOf(new Date()));
+
+const appendActivityLog = (db, { module, entityLabel, summary, actor = "Demo Operator" }) => {
+  db.activityLogs.unshift({
+    _id: nextId(db.activityLogs, "log"),
+    actor,
+    module,
+    action: "create",
+    entityLabel,
+    createdAt: dateOf(new Date()),
+    summary,
+  });
+};
+
+const createRecord = (collectionName, payload) => {
+  const db = ensureDb();
+  const config = recordConfigs[collectionName];
+  const now = dateOf(new Date());
+  const record = {
+    _id: nextId(db[collectionName], config.prefix),
+    ...payload,
+    createdAt: payload.createdAt || now,
+    updatedAt: payload.updatedAt || now,
+  };
+
+  db[collectionName].unshift(record);
+  appendActivityLog(db, {
+    module: config.module,
+    entityLabel: record[config.labelKey] || record._id,
+    summary: config.summary,
+  });
+  saveDb(db);
+
+  return clone(record);
+};
+
 const filterRows = (rows, params = {}, dateField = "createdAt") =>
   rows.filter((row) => {
     if (params.search) {
@@ -703,6 +767,7 @@ export const enterpriseService = {
     return {
       products: clone(db.products).sort(byDesc("updatedAt")),
       services: clone(db.serviceCards).sort(byDesc("updatedAt")),
+      warehouses: clone(db.warehouses).sort(byDesc("updatedAt")),
       metrics: {
         activeProducts: db.products.filter((item) => item.isActive).length,
         activeServices: db.serviceCards.filter((item) => item.isActive).length,
@@ -723,6 +788,7 @@ export const enterpriseService = {
     const rows = enrichStockRows(db);
 
     return {
+      products: clone(db.products).sort(byDesc("updatedAt")),
       warehouses: clone(db.warehouses).sort(byDesc("updatedAt")),
       stocks: rows.sort(byDesc("lastMovementDate")),
       metrics: {
@@ -847,6 +913,108 @@ export const enterpriseService = {
       },
     };
   },
+  createProduct: (payload) =>
+    createRecord("products", {
+      ...payload,
+      vatRate: Number(payload.vatRate || 0),
+      purchasePrice: Number(payload.purchasePrice || 0),
+      salePrice: Number(payload.salePrice || 0),
+      minimumStock: Number(payload.minimumStock || 0),
+      maximumStock: Number(payload.maximumStock || 0),
+      isActive: payload.isActive ?? true,
+    }),
+  createServiceCard: (payload) =>
+    createRecord("serviceCards", {
+      ...payload,
+      vatRate: Number(payload.vatRate || 0),
+      isActive: payload.isActive ?? true,
+    }),
+  createWarehouse: (payload) =>
+    createRecord("warehouses", {
+      ...payload,
+      capacity: Number(payload.capacity || 0),
+      status: payload.status || "active",
+    }),
+  createStock: (payload) =>
+    createRecord("stocks", {
+      ...payload,
+      quantity: Number(payload.quantity || 0),
+      reserved: Number(payload.reserved || 0),
+      minimumStock: Number(payload.minimumStock || 0),
+      maximumStock: Number(payload.maximumStock || 0),
+      lastMovementDate: normalizeDate(payload.lastMovementDate),
+    }),
+  createOffer: (payload) =>
+    createRecord("offers", {
+      ...payload,
+      issueDate: normalizeDate(payload.issueDate),
+      validUntil: normalizeDate(payload.validUntil),
+      items: Number(payload.items || 0),
+      subtotal: Number(payload.subtotal || 0),
+      discount: Number(payload.discount || 0),
+      vatTotal: Number(payload.vatTotal || 0),
+      grandTotal: Number(payload.grandTotal || 0),
+    }),
+  createOrder: (payload) =>
+    createRecord("orders", {
+      ...payload,
+      issueDate: normalizeDate(payload.issueDate),
+      deliveryDate: normalizeDate(payload.deliveryDate),
+      total: Number(payload.total || 0),
+    }),
+  createDispatchNote: (payload) =>
+    createRecord("dispatchNotes", {
+      ...payload,
+      dispatchDate: normalizeDate(payload.dispatchDate),
+    }),
+  createCollection: (payload) =>
+    createRecord("collections", {
+      ...payload,
+      collectionDate: normalizeDate(payload.collectionDate),
+      amount: Number(payload.amount || 0),
+    }),
+  createPayment: (payload) =>
+    createRecord("payments", {
+      ...payload,
+      paymentDate: normalizeDate(payload.paymentDate),
+      amount: Number(payload.amount || 0),
+    }),
+  createCheck: (payload) =>
+    createRecord("checks", {
+      ...payload,
+      issueDate: normalizeDate(payload.issueDate),
+      dueDate: normalizeDate(payload.dueDate),
+      amount: Number(payload.amount || 0),
+    }),
+  createAccountingAccount: (payload) =>
+    createRecord("accountingAccounts", {
+      ...payload,
+      level: Number(payload.level || 1),
+      balance: Number(payload.balance || 0),
+    }),
+  createJournalEntry: (payload) =>
+    createRecord("journalEntries", {
+      ...payload,
+      entryDate: normalizeDate(payload.entryDate),
+      debit: Number(payload.debit || 0),
+      credit: Number(payload.credit || 0),
+    }),
+  createDocument: (payload) =>
+    createRecord("documents", {
+      ...payload,
+      uploadedAt: normalizeDate(payload.uploadedAt),
+    }),
+  createNotification: (payload) =>
+    createRecord("notifications", {
+      ...payload,
+      createdAt: normalizeDate(payload.createdAt),
+      read: payload.read ?? false,
+    }),
+  createCalendarEvent: (payload) =>
+    createRecord("calendarEvents", {
+      ...payload,
+      date: normalizeDate(payload.date),
+    }),
   getSettings: () => clone(ensureDb().settings),
   updateSettings: (payload) => {
     const db = ensureDb();
