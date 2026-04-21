@@ -1,0 +1,17 @@
+{
+  "name": "muhasebe-yonetim-sistemi",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Kurumsal muhasebe yonetim sistemi",
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "seed": "npm run seed --prefix server",
+    "build": "npm run build --prefix client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
+
